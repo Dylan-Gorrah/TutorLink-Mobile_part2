@@ -6,6 +6,8 @@ import com.snokonoko.tutor_link.data.AccountRepository
 import com.snokonoko.tutor_link.data.ApiClient
 import com.snokonoko.tutor_link.data.AuthRepository
 import com.snokonoko.tutor_link.data.LocalSettings
+import com.snokonoko.tutor_link.data.RegisterUploader
+import com.snokonoko.tutor_link.data.TutorRepository
 import com.snokonoko.tutor_link.ui.components.Haptics
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
@@ -46,6 +48,8 @@ class Graph(context: Context) {
     val auth = AuthRepository(supabase)
     val api = ApiClient(http, BuildConfig.SUPABASE_URL + "/functions/v1/api", BuildConfig.SUPABASE_ANON_KEY) { auth.token() }
     val account = AccountRepository(api)
+    val tutor = TutorRepository(api)
+    val uploader = RegisterUploader(supabase)
     val localSettings = LocalSettings(context)
     val haptics = Haptics(context)
 }

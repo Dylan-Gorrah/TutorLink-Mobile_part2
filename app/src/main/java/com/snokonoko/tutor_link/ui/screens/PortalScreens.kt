@@ -107,6 +107,7 @@ fun PortalScreen(
     onOpenSettings: () -> Unit,
     onEditModules: () -> Unit,
     onSignOut: () -> Unit,
+    unreadOverride: Int? = null,
     tabContent: @Composable (role: Role, tab: String, me: Me, goTab: (String) -> Unit) -> Unit,
 ) {
     val me = state.me ?: return
@@ -114,7 +115,7 @@ fun PortalScreen(
     val tabs = remember(role) { tabsFor(role) }
     var tab by rememberSaveable(role) { mutableStateOf(tabs.first().id) }
     val spec = tabs.firstOrNull { it.id == tab } ?: tabs.first()
-    val unread = if (role == Role.Tutor) me.unread else 0
+    val unread = if (role == Role.Tutor) unreadOverride ?: me.unread else 0
     val reduce = LocalReduceMotion.current
 
     Column(Modifier.fillMaxSize().background(TL.Bg)) {

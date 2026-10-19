@@ -48,6 +48,9 @@ import com.snokonoko.tutor_link.ui.screens.ScrollBody
 import com.snokonoko.tutor_link.ui.screens.SettingsScreen
 import com.snokonoko.tutor_link.ui.screens.SignInScreen
 import com.snokonoko.tutor_link.ui.theme.TL
+import com.snokonoko.tutor_link.ui.tutor.TutorTab
+import com.snokonoko.tutor_link.ui.tutor.TutorViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 object Routes {
     const val START = "start"
@@ -168,13 +171,20 @@ fun AppRoot(vm: SessionViewModel) {
                     )
                 }
                 composable(Routes.APP) {
-                    PortalScreen(
-                        state = state,
-                        onOpenSettings = { nav.navigate(Routes.SETTINGS) },
-                        onEditModules = { nav.navigate(Routes.modules(signup = false)) },
-                        onSignOut = { vm.signOut() },
-                    ) { _, tab, _, _ ->
-                        ScrollBody { ComingSoon(tab.replaceFirstChar { it.uppercase() }) }
+                    val me = state.me
+                    val openSettings = { nav.navigate(Routes.SETTINGS) }
+                    val editModules = { nav.navigate(Routes.modules(signup = false)) }
+                    if (me != null && Role.of(me.account.role) == Role.Tutor) {
+                        TutorApp(state, me.account.id, openSettings, editModules, vm::signOut)
+                    } else {
+                        PortalScreen(
+                            state = state,
+                            onOpenSettings = openSettings,
+                            onEditModules = editModules,
+                            onSignOut = { vm.signOut() },
+                        ) { _, tab, _, _ ->
+                            ScrollBody { ComingSoon(tab.replaceFirstChar { it.uppercase() }) }
+                        }
                     }
                 }
                 composable(Routes.SETTINGS) {
@@ -190,6 +200,32 @@ fun AppRoot(vm: SessionViewModel) {
             }
             ToastHost(toast, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 86.dp))
         }
+    }
+}
+
+/** The tutor's five tabs. The view model is keyed to the account so a new sign-in starts fresh. */
+@Composable
+private fun TutorApp(state: SessionState, accountId: String, onOpenSettings: () -> Unit, onEditModules: () -> Unit, onSignOut: () -> Unit) {
+    val tvm: TutorViewModel = viewModel(key = "tutor-$accountId")
+    val ts by tvm.state.collectAsStateWithLifecycle()
+    val unread by tvm.unread.collectAsStateWithLifecycle()
+    val toast = LocalToast.current
+    val haptics = LocalHaptics.current
+    LaunchedEffect(tvm) {
+        tvm.loadAll()
+        tvm.toasts.collect {
+            toast.show(it.text)
+            haptics.buzz(if (it.error) Buzz.ERROR else Buzz.CONFIRM)
+        }
+    }
+    PortalScreen(
+        state = state,
+        onOpenSettings = onOpenSettings,
+        onEditModules = onEditModules,
+        onSignOut = onSignOut,
+        unreadOverride = unread,
+    ) { _, tab, me, goTab ->
+        TutorTab(tab, me, tvm, ts, state.settings.messagePreviews, goTab)
     }
 }
 
