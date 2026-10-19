@@ -43,6 +43,8 @@ import com.snokonoko.tutor_link.ui.components.systemAnimationsOff
 import com.snokonoko.tutor_link.ui.screens.ApplicantScreen
 import com.snokonoko.tutor_link.ui.screens.ChoosePasswordScreen
 import com.snokonoko.tutor_link.ui.screens.ComingSoon
+import com.snokonoko.tutor_link.ui.screens.HelpScreen
+import com.snokonoko.tutor_link.ui.screens.LocalOpenHelp
 import com.snokonoko.tutor_link.ui.screens.StudentAuthScreen
 import com.snokonoko.tutor_link.ui.screens.ModulePickerScreen
 import com.snokonoko.tutor_link.ui.screens.PortalScreen
@@ -140,6 +142,7 @@ fun AppRoot(vm: SessionViewModel) {
         LocalHaptics provides haptics,
         LocalReduceMotion provides reduce,
         LocalToast provides toast,
+        LocalOpenHelp provides { section: String -> nav.navigate("help/$section") },
     ) {
         Box(Modifier.fillMaxSize().background(TL.Bg)) {
             NavHost(
@@ -263,10 +266,14 @@ fun AppRoot(vm: SessionViewModel) {
                         TutorDetailScreen(id, staffVm, ss, onBack = { nav.popBackStack() }, onThread = { nav.navigate("thread/$it") })
                     }
                 }
+                composable("help/{section}") { entry ->
+                    HelpScreen(entry.arguments?.getString("section")) { nav.popBackStack() }
+                }
                 composable(Routes.SETTINGS) {
                     SettingsScreen(
                         state = state,
                         onBack = { nav.popBackStack() },
+                        onHelp = { nav.navigate("help/settings") },
                         onChange = vm::updateSettings,
                         onChangePassword = vm::changePassword,
                         onEditModules = { nav.navigate(Routes.modules(signup = false)) },

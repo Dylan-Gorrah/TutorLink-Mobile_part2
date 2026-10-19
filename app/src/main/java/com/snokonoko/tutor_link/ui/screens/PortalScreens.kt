@@ -71,6 +71,9 @@ import com.snokonoko.tutor_link.ui.theme.TL
 import com.snokonoko.tutor_link.ui.theme.TLType
 import kotlinx.coroutines.launch
 
+/** Opens Help at a section; provided by AppRoot so every portal's "?" works. */
+val LocalOpenHelp = androidx.compose.runtime.staticCompositionLocalOf<(String) -> Unit> { {} }
+
 /* ---------- tabs per role (the demo's 5 / 3 / 5) ---------- */
 
 data class TabSpec(val id: String, val icon: Ic, val label: String, val title: String)
@@ -107,6 +110,7 @@ fun PortalScreen(
     onOpenSettings: () -> Unit,
     onEditModules: () -> Unit,
     onSignOut: () -> Unit,
+    onHelp: (String) -> Unit = LocalOpenHelp.current,
     unreadOverride: Int? = null,
     tabCounts: Map<String, Int> = emptyMap(),
     moduleCounts: Map<String, Int> = emptyMap(),
@@ -124,6 +128,7 @@ fun PortalScreen(
         NavBar(
             spec.title,
             left = if (role == Role.Tutor) ({ IconBtn(Ic.Mail, { tab = "inbox" }, count = unread) }) else null,
+            right = { IconBtn(Ic.Help, { onHelp(if (tab == "inbox" || tab == "messages") "messages" else role.key) }) },
         )
         Box(Modifier.weight(1f)) {
             AnimatedContent(
@@ -271,6 +276,7 @@ fun formatDate(iso: String?): String {
 fun SettingsScreen(
     state: SessionState,
     onBack: () -> Unit,
+    onHelp: () -> Unit = {},
     onChange: (SettingsPatch) -> Unit,
     onChangePassword: (String, String, () -> Unit) -> Unit,
     onEditModules: () -> Unit,
@@ -297,6 +303,8 @@ fun SettingsScreen(
         Sect("Account")
         TLCard {
             ListRow("Change password", "Pick a new password for this account", onClick = { showPassword = true })
+            RowDivider()
+            ListRow("Help", "How each screen works, and what to do if something goes wrong", onClick = onHelp)
             if (role == Role.Lecturer) {
                 RowDivider()
                 ListRow("My modules", state.me?.modules?.joinToString(" · ") { it.code } ?: "", onClick = onEditModules)
