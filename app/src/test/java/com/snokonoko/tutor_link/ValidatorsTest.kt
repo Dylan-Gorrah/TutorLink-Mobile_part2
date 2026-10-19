@@ -13,7 +13,7 @@ class ValidatorsTest {
 
     @Test
     fun shortUsernameGetsTheDemoDomain() {
-        assertEquals("dylangorrah3+student1@gmail.com", Validators.normaliseLogin("  Student1 "))
+        assertEquals("student1@gmail.com", Validators.normaliseLogin("  Student1 "))
     }
 
     @Test

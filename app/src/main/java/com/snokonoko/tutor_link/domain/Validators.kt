@@ -5,14 +5,12 @@ import com.snokonoko.tutor_link.data.Role
 /** Input rules. The API checks all of these again on the server. Wording follows the demo. */
 object Validators {
     const val CAMPUS = "rosebank.ac.za"
-    // Demo accounts are "+" aliases of one Gmail, so "student1" means dylangorrah3+student1@gmail.com
-    const val DEMO_GMAIL = "dylangorrah3"
     private val EMAIL = Regex("^[^\\s@]+@[^\\s@]+\\.[a-z]{2,}$", RegexOption.IGNORE_CASE)
 
-    /** "student1" signs in as dylangorrah3+student1@gmail.com; full emails pass through. */
+    /** "student1" signs in as student1@gmail.com; full emails pass through. */
     fun normaliseLogin(input: String): String {
         val t = input.trim().lowercase()
-        return if (t.isEmpty() || '@' in t) t else "$DEMO_GMAIL+$t@gmail.com"
+        return if (t.isEmpty() || '@' in t) t else "$t@gmail.com"
     }
 
     fun isEmail(s: String) = EMAIL.matches(s.trim())
