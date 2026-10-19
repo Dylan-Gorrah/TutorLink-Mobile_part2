@@ -6,6 +6,18 @@ A native Android app (Kotlin + Jetpack Compose) for the Rosebank College tutorin
 
 XISD6329 Task 2.
 
+## What it does
+
+- **Students** apply to tutor: sign up with Google or email, enter their marks, and follow the status of their application.
+- **Tutors** see their schedule, mark today's session, log sessions, upload signed registers, track pay (and export a CSV statement), and read notices.
+- **Lecturers** see the tutors on the modules they teach and send them notices in a per-tutor message timeline.
+- **Admin** reviews applications (marks, eligibility, background check) and approves or declines them, confirms sessions, marks tutors as paid, adds lecturers, sets the rate and minimum mark, and messages any tutor.
+- **Everyone** has personal settings (haptics, reduce animations, message previews, password) and an in-app Help screen.
+
+## Demo video
+
+Video: *(link added at submission)*
+
 ## Tech stack
 
 - Kotlin, Jetpack Compose + Material 3, Navigation Compose (slide transitions), ViewModel + coroutines + StateFlow
