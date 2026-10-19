@@ -6,6 +6,12 @@ A native Android app (Kotlin + Jetpack Compose) for the Rosebank College tutorin
 
 XISD6329 Task 2.
 
+## Download the app
+
+**[Download TutorLink-v1.0.apk](https://github.com/Dylan-Gorrah/TutorLink-Mobile_part2/releases/latest/download/TutorLink-v1.0.apk)** (Android 8.0 or newer) · [Release page](https://github.com/Dylan-Gorrah/TutorLink-Mobile_part2/releases/tag/v1.0.0)
+
+On the phone: download the file, allow installs from this source when Android asks, then open it. Demo logins are under [Test logins](#test-logins).
+
 ## What it does
 
 - **Students** apply to tutor: sign up with Google or email, enter their marks, and follow the status of their application.

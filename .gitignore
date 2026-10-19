@@ -26,3 +26,6 @@ build/
 app/build/
 hs_err_pid*.log
 replay_pid*.log
+
+# Release APKs are attached to GitHub releases, not committed
+*.apk
