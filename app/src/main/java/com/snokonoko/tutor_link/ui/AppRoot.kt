@@ -40,7 +40,10 @@ import com.snokonoko.tutor_link.ui.components.LocalToast
 import com.snokonoko.tutor_link.ui.components.ToastHost
 import com.snokonoko.tutor_link.ui.components.ToastState
 import com.snokonoko.tutor_link.ui.components.systemAnimationsOff
+import com.snokonoko.tutor_link.ui.screens.ApplicantScreen
+import com.snokonoko.tutor_link.ui.screens.ChoosePasswordScreen
 import com.snokonoko.tutor_link.ui.screens.ComingSoon
+import com.snokonoko.tutor_link.ui.screens.StudentAuthScreen
 import com.snokonoko.tutor_link.ui.screens.ModulePickerScreen
 import com.snokonoko.tutor_link.ui.screens.PortalScreen
 import com.snokonoko.tutor_link.ui.screens.RoleSelectScreen
@@ -110,7 +113,9 @@ fun AppRoot(vm: SessionViewModel) {
         val route = nav.currentDestination?.route
         when (state.phase) {
             Phase.SignedIn -> if (route != Routes.APP) nav.go(Routes.APP)
-            Phase.SignedOut -> if (route == null || route in listOf(Routes.START, Routes.APP, Routes.SETTINGS) || route == Routes.MODULES) {
+            Phase.NeedsPassword -> if (route != "password") nav.go("password")
+            Phase.Applicant -> if (route != "applicant") nav.go("applicant")
+            Phase.SignedOut -> if (route == null || route in listOf(Routes.START, Routes.APP, Routes.SETTINGS, "password", "applicant") || route == Routes.MODULES) {
                 if (route != Routes.MODULES || vm.pendingLecturer == null) nav.go(Routes.ROLES)
             }
             else -> Unit
@@ -157,7 +162,7 @@ fun AppRoot(vm: SessionViewModel) {
                     }
                 }
                 composable(Routes.ROLES) {
-                    RoleSelectScreen { role -> nav.navigate(Routes.auth(role)) }
+                    RoleSelectScreen(onPick = { role -> nav.navigate(Routes.auth(role)) }, onStudent = { nav.navigate("student/signin") })
                 }
                 composable(Routes.AUTH) { entry ->
                     val role = Role.of(entry.arguments?.getString("role")) ?: Role.Tutor
@@ -178,6 +183,24 @@ fun AppRoot(vm: SessionViewModel) {
                             vm.startRegistration(n, e, p, c).also { if (it == null) nav.navigate(Routes.modules(signup = true)) }
                         },
                     )
+                }
+                composable("student/{mode}") { entry ->
+                    val register = entry.arguments?.getString("mode") == "register"
+                    StudentAuthScreen(
+                        register = register,
+                        state = state,
+                        onBack = { nav.popBackStack() },
+                        onSignIn = { login, pass -> vm.signIn(null, login, pass) },
+                        onGoogle = { vm.signInWithGoogle(null) },
+                        onSwitchMode = { nav.navigate(if (register) "student/signin" else "student/register") { popUpTo("student/{mode}") { inclusive = true } } },
+                        onRegister = vm::registerStudent,
+                    )
+                }
+                composable("password") {
+                    ChoosePasswordScreen(state, onSave = vm::choosePassword, onSignOut = vm::signOut)
+                }
+                composable("applicant") {
+                    ApplicantScreen(state, onApply = vm::apply, onRefresh = vm::refreshApplicant, onSignOut = vm::signOut)
                 }
                 composable(Routes.MODULES) { entry ->
                     val signup = entry.arguments?.getString("mode") == "signup"

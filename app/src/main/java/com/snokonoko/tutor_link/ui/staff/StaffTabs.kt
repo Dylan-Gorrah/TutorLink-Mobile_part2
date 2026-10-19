@@ -261,6 +261,7 @@ fun AdminTab(tab: String, me: Me, vm: StaffViewModel, s: StaffState, nav: StaffN
                 vm.send(t.id, topic, body, isLecturer = false) { close(); nav.openThread(t.id) }
             }
         }
+        "lecturer" -> AddLecturerSheet(s.busy, onDismiss = { sheet = null }) { n, e, mods, close -> vm.addLecturer(n, e, mods, close) }
         "rate" -> NumberSheet(
             "Rate per session", "Applies to every confirmed session across the programme.", "Rate (ZAR)",
             ((s.programme as? Loadable.Ready)?.data?.ratePerSession)?.let { PayMath.rand(it).removePrefix("R").replace(" ", "") } ?: "", "Save rate", s.busy,
@@ -386,6 +387,8 @@ private fun ColumnScope.AdminSettings(me: Me, s: StaffState, vm: StaffViewModel,
                     Text("${p.minMark.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }}%", style = TLType.rname.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold))
                 })
                 RowDivider()
+                ListRow("Add a lecturer", "They sign in with Google the first time", onClick = { openSheet("lecturer") }, leading = { TLIcon(Ic.Plus, 20) })
+                RowDivider()
                 val sent = (s.threads as? Loadable.Ready)?.data?.size
                 ListRow("Messages sent", "Across all tutors", trailing = { Text(sent?.toString() ?: "—", style = TLType.rname.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold)) })
             }
@@ -436,3 +439,25 @@ private fun NumberSheet(
     }
 }
 
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun AddLecturerSheet(busy: Boolean, onDismiss: () -> Unit, onSave: (String, String, List<String>, () -> Unit) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    val picked = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    TLSheet("Admin", "Add a lecturer", "They sign in with Google using this email, choose a password, and see the tutors on these modules.", onDismiss) { close ->
+        Field("Name", name, { name = it.take(80) }, placeholder = "Dr M. Pretorius", capitalize = true)
+        Field("Email", email, { email = it.take(120) }, placeholder = "name@gmail.com", keyboard = KeyboardType.Email)
+        Column {
+            Text("MODULES", style = TLType.label, modifier = Modifier.padding(start = 1.dp, bottom = 6.dp))
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                com.snokonoko.tutor_link.data.ALL_MODULES.forEach { m ->
+                    val on = m.code in picked
+                    com.snokonoko.tutor_link.ui.components.ModuleChip(m.code, m.name, on = on, small = true) { if (on) picked.remove(m.code) else picked.add(m.code) }
+                }
+            }
+        }
+        TLButton("Add lecturer", { onSave(name, email, picked.toList(), close) }, loading = busy, buzz = Buzz.CONFIRM)
+    }
+}

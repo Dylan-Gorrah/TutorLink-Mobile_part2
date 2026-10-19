@@ -86,3 +86,31 @@ val ALL_MODULES = listOf(
 )
 
 fun moduleName(code: String): String = ALL_MODULES.firstOrNull { it.code == code }?.name ?: code
+
+/* ---------- students applying in the app ---------- */
+
+@Serializable
+data class ApplicantRegisterRequest(val email: String, val password: String)
+
+@Serializable
+data class ApplicantApp(
+    val id: String,
+    val name: String,
+    val status: String,
+    val submittedAt: String = "",
+    val processedAt: String? = null,
+    val responseMessage: String = "",
+    val appliedModules: List<String> = emptyList(),
+)
+
+@Serializable
+data class ApplicantStatus(val email: String = "", val application: ApplicantApp? = null)
+
+@Serializable
+data class MarkInput(val code: String, val mark: Int)
+
+@Serializable
+data class ApplyRequest(val name: String, val studentNumber: String, val programme: String, val marks: List<MarkInput>)
+
+@Serializable
+data class AddLecturerRequest(val name: String, val email: String, val modules: List<String>)

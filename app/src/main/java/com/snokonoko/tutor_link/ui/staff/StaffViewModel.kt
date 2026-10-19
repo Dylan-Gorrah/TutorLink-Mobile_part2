@@ -52,7 +52,7 @@ data class StaffState(
 )
 
 /** Everything the lecturer and admin apps load and do. */
-class StaffViewModel(app: Application) : AndroidViewModel(app) {
+class StaffViewModel(private val app: Application) : AndroidViewModel(app) {
     private val repo = app.graph.staff
     private val _state = MutableStateFlow(StaffState())
     val state: StateFlow<StaffState> = _state.asStateFlow()
@@ -208,6 +208,25 @@ class StaffViewModel(app: Application) : AndroidViewModel(app) {
             is ApiResult.Err -> say(r.message, true)
         }
         busy(false)
+    }
+
+    /** Admin adds a lecturer; they sign in with Google the first time and choose a password. */
+    fun addLecturer(name: String, email: String, modules: List<String>, onDone: () -> Unit) {
+        val problem = when {
+            name.isBlank() -> "Enter the lecturer's name"
+            !Validators.isEmail(email) -> "Enter a valid email address"
+            modules.isEmpty() -> "Pick at least one module"
+            else -> null
+        }
+        if (problem != null) { say(problem, true); return }
+        viewModelScope.launch {
+            busy(true)
+            when (val r = app.graph.account.addLecturer(com.snokonoko.tutor_link.data.AddLecturerRequest(name.trim(), email.trim().lowercase(), modules))) {
+                is ApiResult.Ok -> { onDone(); say("Lecturer added — they can sign in with Google") }
+                is ApiResult.Err -> say(r.message, true)
+            }
+            busy(false)
+        }
     }
 
     fun saveRate(text: String, onDone: () -> Unit) {

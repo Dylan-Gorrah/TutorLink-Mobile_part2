@@ -634,18 +634,29 @@ async function adminDecision(ctx: Ctx) {
 
   let tutor: { id: string; name: string; email: string } | null = null;
   if (status === "approved") {
-    const email = String(a.email).toLowerCase().replace("@student.", "@tutor.");
+    // The student keeps their own email: approving upgrades their login to a tutor account.
+    const email = String(a.email).toLowerCase();
     const taken = await run(ctx.admin.from("accounts").select("id").ilike("email", email).maybeSingle());
-    if (taken) fail(409, "A tutor account already uses " + email);
+    if (taken) fail(409, "An account already uses " + email);
 
-    const { data: created, error } = await ctx.admin.auth.admin.createUser({
-      email,
-      password: STARTER_PASSWORD,
-      email_confirm: true,
-    });
-    if (error || !created.user) {
-      console.error(error);
-      fail(500, "Could not create the tutor's login. Try again.");
+    const link = await run(ctx.admin.from("application_users").select("user_id").eq("application_id", a.id).maybeSingle());
+    let userId: string;
+    let createdHere = false;
+    if (link) {
+      userId = link.user_id;
+    } else {
+      // Applied on the website without an app login: make one (test password, see README).
+      const { data: created, error } = await ctx.admin.auth.admin.createUser({
+        email,
+        password: STARTER_PASSWORD,
+        email_confirm: true,
+      });
+      if (error || !created.user) {
+        console.error(error);
+        fail(500, "Could not create the tutor's login. Try again.");
+      }
+      userId = created!.user!.id;
+      createdHere = true;
     }
     const id = "tutor_" + shortId();
     try {
@@ -658,7 +669,7 @@ async function adminDecision(ctx: Ctx) {
         student_number: a.student_number,
         approved_at: today(),
       }));
-      await run(ctx.admin.from("account_users").insert({ user_id: created!.user!.id, account_id: id }));
+      await run(ctx.admin.from("account_users").insert({ user_id: userId, account_id: id }));
       // deno-lint-ignore no-explicit-any
       const mods = a.application_modules.map((m: any) => ({ account_id: id, module_code: m.module_code }));
       if (mods.length) await run(ctx.admin.from("account_modules").insert(mods));
@@ -673,8 +684,9 @@ async function adminDecision(ctx: Ctx) {
         read_by_tutor: false,
       }));
     } catch (e) {
-      await ctx.admin.auth.admin.deleteUser(created!.user!.id);
+      await ctx.admin.from("account_users").delete().eq("account_id", id);
       await ctx.admin.from("accounts").delete().eq("id", id);
+      if (createdHere) await ctx.admin.auth.admin.deleteUser(userId);
       throw e;
     }
     tutor = { id, name: a.name, email };
@@ -821,9 +833,148 @@ async function adminTemplates(ctx: Ctx) {
   return { templates: rows };
 }
 
+/* ---------- handlers: students applying to tutor ---------- */
+
+// Public: a student registers with any email and a password (hashed by Supabase Auth).
+async function applicantRegister(ctx: Ctx) {
+  const email = text(ctx.body, "email", "Email", 120).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) fail(400, "Enter a valid email address");
+  const password = ctx.body.password;
+  if (typeof password !== "string" || password.length < 6) fail(400, "Password needs at least 6 characters");
+  if (password.length > 72) fail(400, "Password must be 72 characters or fewer");
+  const { error } = await ctx.admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { password_set: true },
+  });
+  if (error) {
+    if (/already/i.test(error.message)) fail(409, "An account already uses that email. Sign in instead.");
+    console.error(error);
+    fail(500, "Could not create your account. Try again.");
+  }
+  return { ok: true };
+}
+
+const markResult = (m: number) => (m >= 75 ? "PD" : m >= 50 ? "P" : "F");
+
+async function applicantStatus(ctx: Ctx) {
+  const link = await run(ctx.admin.from("application_users").select("application_id").eq("user_id", ctx.userId).maybeSingle());
+  if (!link) return { email: ctx.email, application: null };
+  const a = await run(
+    ctx.admin.from("applications").select("*, application_modules(module_code)").eq("id", link.application_id).single(),
+  );
+  return {
+    email: ctx.email,
+    application: {
+      id: a.id,
+      name: a.name,
+      status: a.status,
+      submittedAt: a.submitted_at,
+      processedAt: a.processed_at,
+      responseMessage: a.response_message,
+      // deno-lint-ignore no-explicit-any
+      appliedModules: a.application_modules.map((m: any) => m.module_code),
+    },
+  };
+}
+
+// The student's qualifications: the modules they want to tutor and their mark in each.
+async function applicantApply(ctx: Ctx) {
+  if (ctx.account) fail(409, "You already have a TutorLink account");
+  const existing = await run(ctx.admin.from("application_users").select("application_id").eq("user_id", ctx.userId).maybeSingle());
+  if (existing) fail(409, "You've already applied. Check your status instead.");
+  const name = text(ctx.body, "name", "Your full name", 80);
+  const studentNumber = text(ctx.body, "studentNumber", "Student number", 20).toUpperCase();
+  if (!/^[A-Z]{0,3}\d{6,10}$/.test(studentNumber)) fail(400, "Enter a valid student number, e.g. ST10398445");
+  const programme = typeof ctx.body.programme === "string" && ctx.body.programme.trim()
+    ? ctx.body.programme.trim().slice(0, 120)
+    : "Diploma in IT";
+  const marks = ctx.body.marks;
+  if (!Array.isArray(marks) || marks.length === 0) fail(400, "Add at least one module and your mark");
+  const rows: { code: string; mark: number }[] = [];
+  for (const m of marks as unknown[]) {
+    const r = m as Record<string, unknown>;
+    if (typeof r?.code !== "string" || typeof r?.mark !== "number" || !Number.isInteger(r.mark) || r.mark < 0 || r.mark > 100) {
+      fail(400, "Each mark must be a whole number from 0 to 100");
+    }
+    rows.push({ code: r.code as string, mark: r.mark as number });
+  }
+  const codes = [...new Set(rows.map((r) => r.code))];
+  if (codes.length !== rows.length) fail(400, "Each module can only appear once");
+  const found = await run(ctx.admin.from("modules").select("code").in("code", codes));
+  if (found.length !== codes.length) fail(400, "One or more modules don't exist");
+
+  const id = "app_" + shortId();
+  await run(ctx.admin.from("applications").insert({
+    id,
+    name,
+    email: ctx.email.toLowerCase(),
+    student_number: studentNumber,
+    programme,
+    status: "pending",
+  }));
+  try {
+    await run(ctx.admin.from("application_modules").insert(codes.map((c) => ({ application_id: id, module_code: c }))));
+    await run(ctx.admin.from("report_modules").insert(rows.map((r) => ({
+      application_id: id,
+      module_code: r.code,
+      mark: r.mark,
+      result: markResult(r.mark),
+    }))));
+    await run(ctx.admin.from("application_users").insert({ user_id: ctx.userId, application_id: id }));
+  } catch (e) {
+    await ctx.admin.from("report_modules").delete().eq("application_id", id);
+    await ctx.admin.from("application_modules").delete().eq("application_id", id);
+    await ctx.admin.from("applications").delete().eq("id", id);
+    throw e;
+  }
+  return applicantStatus(ctx);
+}
+
+// Admin adds a lecturer; they sign in with Google the first time and choose a password.
+async function adminAddLecturer(ctx: Ctx) {
+  const name = text(ctx.body, "name", "Name", 80);
+  const email = text(ctx.body, "email", "Email", 120).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) fail(400, "Enter a valid email address");
+  const codes = await moduleCodes(ctx);
+  const taken = await run(ctx.admin.from("accounts").select("id").ilike("email", email).maybeSingle());
+  if (taken) fail(409, "An account already uses that email");
+
+  // Reuse the login if this email already signed in once (e.g. with Google), otherwise create it.
+  const { data: list } = await ctx.admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  let userId = list?.users.find((u) => (u.email ?? "").toLowerCase() === email)?.id;
+  let createdHere = false;
+  if (!userId) {
+    const { data: created, error } = await ctx.admin.auth.admin.createUser({
+      email,
+      password: crypto.randomUUID() + "Aa1!",
+      email_confirm: true,
+    });
+    if (error || !created.user) {
+      console.error(error);
+      fail(500, "Could not create the lecturer's login. Try again.");
+    }
+    userId = created!.user!.id;
+    createdHere = true;
+  }
+  const id = "lect_" + shortId();
+  try {
+    await run(ctx.admin.from("accounts").insert({ id, role: "lecturer", name, email, password: PASSWORD_PLACEHOLDER }));
+    await run(ctx.admin.from("account_users").insert({ user_id: userId, account_id: id }));
+    await run(ctx.admin.from("account_modules").insert(codes.map((c) => ({ account_id: id, module_code: c }))));
+  } catch (e) {
+    await ctx.admin.from("account_users").delete().eq("account_id", id);
+    await ctx.admin.from("accounts").delete().eq("id", id);
+    if (createdHere) await ctx.admin.auth.admin.deleteUser(userId!);
+    throw e;
+  }
+  return { ok: true, lecturer: { id, name, email } };
+}
+
 /* ---------- routing ---------- */
 
-type Who = Role[] | "any" | "public";
+type Who = Role[] | "any" | "public" | "signed-in";
 type Handler = (ctx: Ctx) => Promise<unknown>;
 
 const routes: [string, string, Who, Handler][] = [
@@ -833,6 +984,10 @@ const routes: [string, string, Who, Handler][] = [
   ["PATCH", "/messages/:id/read", ["tutor"], markRead],
 
   ["POST", "/lecturer/register", "public", lecturerRegister],
+  ["POST", "/applicant/register", "public", applicantRegister],
+  ["GET", "/applicant/status", "signed-in", applicantStatus],
+  ["POST", "/applicant/apply", "signed-in", applicantApply],
+  ["POST", "/admin/lecturers", ["admin"], adminAddLecturer],
   ["PUT", "/lecturer/modules", ["lecturer"], lecturerModules],
   ["GET", "/lecturer/tutors", ["lecturer"], lecturerTutors],
   ["GET", "/lecturer/threads", ["lecturer"], lecturerThreads],
@@ -941,8 +1096,11 @@ Deno.serve(async (req) => {
       ) as Account
       : null;
 
-    if (!account) fail(403, "There's no TutorLink account for this login");
-    if (who !== "any" && !who.includes(account!.role)) fail(403, "Your role can't do that");
+    // "signed-in" routes (students applying) only need a login, not a TutorLink account.
+    if (who !== "signed-in") {
+      if (!account) fail(403, "There's no TutorLink account for this login");
+      if (who !== "any" && !who.includes(account!.role)) fail(403, "Your role can't do that");
+    }
 
     const ctx: Ctx = { db, admin, userId: user.id, email: user.email ?? "", account, params, query: url.searchParams, body };
     return json(await handler(ctx));

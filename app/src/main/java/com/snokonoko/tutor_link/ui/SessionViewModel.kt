@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.snokonoko.tutor_link.data.ApiResult
+import com.snokonoko.tutor_link.data.ApplicantStatus
+import com.snokonoko.tutor_link.data.ApplyRequest
+import com.snokonoko.tutor_link.data.MarkInput
 import com.snokonoko.tutor_link.data.Me
 import com.snokonoko.tutor_link.data.RegisterLecturerRequest
 import com.snokonoko.tutor_link.data.Role
@@ -20,7 +23,8 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class Phase { Starting, SignedOut, SignedIn, Offline }
+/** NeedsPassword: first Google sign-in, choose a password. Applicant: a student with no TutorLink account yet. */
+enum class Phase { Starting, SignedOut, SignedIn, Offline, NeedsPassword, Applicant }
 
 data class SessionState(
     val phase: Phase = Phase.Starting,
@@ -30,6 +34,7 @@ data class SessionState(
     /** A lecturer who has just registered sees the first-run note. */
     val firstRun: Boolean = false,
     val offlineMessage: String = "",
+    val applicant: ApplicantStatus? = null,
 )
 
 /** A message for the toast. Errors also get the long 24 ms buzz. */
@@ -51,6 +56,10 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private var googleRole: Role? = null
+    private var googleStudent = false
+    private var googlePending = false
+    /** Where to go once a Google user has chosen their password. */
+    private var afterPassword: Pair<Role?, Boolean>? = null
 
     init {
         viewModelScope.launch {
@@ -59,10 +68,9 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             // Google SSO returns through the deep link and lands here as an authenticated session.
             g.auth.status.collect { st ->
-                if (st is SessionStatus.Authenticated && googleRole != null && _state.value.phase != Phase.SignedIn) {
-                    val chosen = googleRole
-                    googleRole = null
-                    loadMe(chosen)
+                if (st is SessionStatus.Authenticated && googlePending && _state.value.phase != Phase.SignedIn) {
+                    googlePending = false
+                    afterAuth(googleRole, googleStudent, google = true)
                 }
             }
         }
@@ -81,12 +89,33 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun loadMe(chosen: Role?) {
+    /** After any sign-in: a first-time Google user chooses a password, then we find their account. */
+    private suspend fun afterAuth(chosen: Role?, student: Boolean, google: Boolean) {
+        if (google && !g.auth.passwordSet()) {
+            afterPassword = chosen to student
+            _state.update { it.copy(busy = false, phase = Phase.NeedsPassword) }
+            return
+        }
+        loadMe(chosen, student)
+    }
+
+    /** A login with no TutorLink account is a student: show their application (or the form). */
+    private suspend fun loadApplicant(student: Boolean): Boolean {
+        val st = g.account.applicantStatus()
+        if (st is ApiResult.Ok && (st.value.application != null || student)) {
+            _state.update { it.copy(busy = false, phase = Phase.Applicant, applicant = st.value, me = null) }
+            return true
+        }
+        return false
+    }
+
+    private suspend fun loadMe(chosen: Role?, student: Boolean = chosen == null) {
         _state.update { it.copy(busy = true) }
         when (val r = g.account.me()) {
             is ApiResult.Ok -> {
                 val me = r.value
                 val actual = Role.of(me.account.role)
+                // Students who were approved sign in from the Student card and land in the tutor app.
                 val mismatch = if (chosen != null && actual != null) Validators.roleMismatch(chosen, actual) else null
                 if (actual == null || mismatch != null) {
                     g.auth.signOut()
@@ -98,7 +127,9 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             is ApiResult.Err -> {
-                if (r.status == 403 || r.status == 401) {
+                if (r.status == 403 && loadApplicant(student)) {
+                    return
+                } else if (r.status == 403 || r.status == 401) {
                     g.auth.signOut()
                     _state.update { it.copy(busy = false, phase = Phase.SignedOut, me = null) }
                     say(if (r.status == 403) "No TutorLink account for this email." else r.message, error = true)
@@ -121,7 +152,8 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun signIn(chosen: Role, login: String, password: String) {
+    /** [chosen] is the card they tapped; null means the Student card. */
+    fun signIn(chosen: Role?, login: String, password: String) {
         val problem = Validators.signInError(login, password)
         if (problem != null) {
             say(problem, error = true)
@@ -130,7 +162,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.update { it.copy(busy = true) }
             when (val r = g.auth.signIn(Validators.normaliseLogin(login), password)) {
-                is ApiResult.Ok -> loadMe(chosen)
+                is ApiResult.Ok -> afterAuth(chosen, student = chosen == null, google = false)
                 is ApiResult.Err -> {
                     _state.update { it.copy(busy = false) }
                     say(r.message, error = true)
@@ -139,15 +171,90 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun signInWithGoogle(chosen: Role) {
+    fun signInWithGoogle(chosen: Role?) {
         viewModelScope.launch {
             googleRole = chosen
+            googleStudent = chosen == null
+            googlePending = true
             val r = g.auth.startGoogle()
             if (r is ApiResult.Err) {
-                googleRole = null
+                googlePending = false
                 say(r.message, error = true)
             }
         }
+    }
+
+    /** First Google sign-in: choose a password, then carry on to the dashboard. */
+    fun choosePassword(password: String, confirm: String) {
+        Validators.newPassword(password, confirm)?.let { say(it, error = true); return }
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true) }
+            when (val r = g.auth.changePassword(password)) {
+                is ApiResult.Ok -> {
+                    say("Password saved")
+                    val (chosen, student) = afterPassword ?: (null to true)
+                    afterPassword = null
+                    loadMe(chosen, student)
+                }
+                is ApiResult.Err -> {
+                    _state.update { it.copy(busy = false) }
+                    say(r.message, error = true)
+                }
+            }
+        }
+    }
+
+    /** A student creates their login (email + password, hashed by Supabase Auth). */
+    fun registerStudent(email: String, password: String, confirm: String): String? {
+        val e = email.trim().lowercase()
+        val problem = when {
+            !Validators.isEmail(e) -> "Enter a valid email address"
+            else -> Validators.newPassword(password, confirm)
+        }
+        if (problem != null) return problem
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true) }
+            when (val r = g.account.registerApplicant(e, password)) {
+                is ApiResult.Ok -> {
+                    say("Account created")
+                    when (val s = g.auth.signIn(e, password)) {
+                        is ApiResult.Ok -> loadMe(null, student = true)
+                        is ApiResult.Err -> { _state.update { it.copy(busy = false) }; say(s.message, error = true) }
+                    }
+                }
+                is ApiResult.Err -> { _state.update { it.copy(busy = false) }; say(r.message, error = true) }
+            }
+        }
+        return null
+    }
+
+    /** The student's qualifications: modules they want to tutor and their mark in each. */
+    fun apply(name: String, studentNumber: String, programme: String, marks: Map<String, String>) {
+        val parsed = marks.mapValues { it.value.trim().toIntOrNull() }
+        val problem = when {
+            name.isBlank() -> "Enter your full name"
+            studentNumber.isBlank() -> "Enter your student number"
+            marks.isEmpty() -> "Pick at least one module to tutor"
+            parsed.values.any { it == null || it !in 0..100 } -> "Enter a mark from 0 to 100 for each module"
+            else -> null
+        }
+        if (problem != null) { say(problem, error = true); return }
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true) }
+            val req = ApplyRequest(name.trim(), studentNumber.trim(), programme.trim(), parsed.map { MarkInput(it.key, it.value!!) })
+            when (val r = g.account.apply(req)) {
+                is ApiResult.Ok -> {
+                    _state.update { it.copy(busy = false, applicant = r.value) }
+                    say("Application sent")
+                }
+                is ApiResult.Err -> { _state.update { it.copy(busy = false) }; say(r.message, error = true) }
+            }
+        }
+    }
+
+    /** "Check again": if admin approved them, this opens the tutor app. */
+    fun refreshApplicant() {
+        viewModelScope.launch { loadMe(null, student = true) }
     }
 
     /** Registration step 1. Returns field errors, or null when they can move to the module picker. */
@@ -259,7 +366,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             g.auth.signOut()
             pendingLecturer = null
-            _state.update { it.copy(phase = Phase.SignedOut, me = null, firstRun = false) }
+            _state.update { it.copy(phase = Phase.SignedOut, me = null, firstRun = false, applicant = null) }
         }
     }
 

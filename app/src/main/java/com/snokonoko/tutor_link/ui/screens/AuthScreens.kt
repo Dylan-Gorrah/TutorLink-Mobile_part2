@@ -99,6 +99,8 @@ fun Page(
 
 private data class RoleCard(val role: Role, val icon: Ic, val title: String, val desc: String, val gold: Boolean = false, val tag: String? = null)
 
+private val STUDENT_CARD = RoleCard(Role.Tutor, Ic.Clip, "Student", "Apply to become a peer tutor", tag = "Apply")
+
 private val ROLE_CARDS = listOf(
     RoleCard(Role.Tutor, Ic.Cap, "Tutor", "Sessions, attendance, pay, messages"),
     RoleCard(Role.Lecturer, Ic.Board, "Lecturer", "Your modules and their tutors", gold = true, tag = "New"),
@@ -106,7 +108,7 @@ private val ROLE_CARDS = listOf(
 )
 
 @Composable
-fun RoleSelectScreen(onPick: (Role) -> Unit) {
+fun RoleSelectScreen(onPick: (Role) -> Unit, onStudent: () -> Unit) {
     Column(Modifier.fillMaxSize().background(TL.Bg)) {
         Column(Modifier.fillMaxWidth().background(TL.Card).statusBarsPadding()) {
             Image(
@@ -128,8 +130,9 @@ fun RoleSelectScreen(onPick: (Role) -> Unit) {
                 Rise(i) { RoleCardView(card) { onPick(card.role) } }
                 Spacer(Modifier.height(10.dp))
             }
+            Rise(3) { RoleCardView(STUDENT_CARD, onStudent) }
             Text(
-                "Students still apply to tutor on the web portal — that happens once, with a PDF upload, and it belongs on a laptop.",
+                "Students: apply here with your Google account. Once the programme approves you, the same login opens the tutor app.",
                 style = TLType.small,
                 modifier = Modifier.padding(top = 16.dp),
             )
@@ -260,10 +263,12 @@ fun SignInScreen(
 
         when {
             register -> TLButton("Already registered? Sign in", onSwitchMode, style = BtnStyle.Ghost, modifier = Modifier.padding(top = 9.dp))
-            role == Role.Lecturer -> TLButton("New lecturer? Create an account", onSwitchMode, style = BtnStyle.Ghost, modifier = Modifier.padding(top = 9.dp))
             else -> Note(
-                if (role == Role.Tutor) "Tutor accounts are created automatically when an application is approved."
-                else "Admin accounts are issued by the programme office.",
+                when (role) {
+                    Role.Tutor -> "Tutor accounts are created automatically when an application is approved."
+                    Role.Lecturer -> "Lecturer accounts are added by the programme admin. The first time, sign in with Google and choose a password."
+                    Role.Admin -> "Admin accounts are issued by the programme office."
+                },
                 modifier = Modifier.padding(top = 16.dp),
             )
         }

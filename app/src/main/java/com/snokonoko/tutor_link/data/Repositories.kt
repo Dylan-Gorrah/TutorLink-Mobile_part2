@@ -15,6 +15,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 /** Sign-in, Google SSO, password changes and sign-out go straight to Supabase Auth. */
 class AuthRepository(private val client: SupabaseClient) {
@@ -45,7 +49,18 @@ class AuthRepository(private val client: SupabaseClient) {
     suspend fun startGoogle(): ApiResult<Unit> = guard { client.auth.signInWith(Google) }
 
     suspend fun changePassword(newPassword: String): ApiResult<Unit> = guard {
-        client.auth.updateUser { password = newPassword }
+        client.auth.updateUser {
+            password = newPassword
+            data = buildJsonObject { put("password_set", true) }
+        }
+    }
+
+    /** False for someone who has only ever signed in with Google and hasn't chosen a password yet. */
+    fun passwordSet(): Boolean = try {
+        val meta = client.auth.currentUserOrNull()?.userMetadata
+        meta?.get("password_set")?.jsonPrimitive?.booleanOrNull == true
+    } catch (_: Exception) {
+        true
     }
 
     suspend fun signOut() {
@@ -94,6 +109,15 @@ class AccountRepository(private val api: ApiClient) {
 
     suspend fun saveModules(codes: List<String>): ApiResult<ModulesResponse> =
         api.put("/lecturer/modules", ModulesRequest(codes))
+
+    suspend fun registerApplicant(email: String, password: String): ApiResult<RegisterLecturerResponse> =
+        api.post("/applicant/register", ApplicantRegisterRequest(email, password), public = true)
+
+    suspend fun applicantStatus(): ApiResult<ApplicantStatus> = api.get("/applicant/status")
+
+    suspend fun apply(req: ApplyRequest): ApiResult<ApplicantStatus> = api.post("/applicant/apply", req)
+
+    suspend fun addLecturer(req: AddLecturerRequest): ApiResult<RegisterLecturerResponse> = api.post("/admin/lecturers", req)
 }
 
 private val Context.dataStore by preferencesDataStore("tutorlink_settings")
