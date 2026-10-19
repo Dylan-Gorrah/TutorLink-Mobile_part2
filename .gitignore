@@ -1,0 +1,28 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Planning / private material (not part of the app repo)
+docs-notes/
+asighnment.txt
+CLAUDE.md
+.mcp.json
+tutor-link-demo-v2-main/
+
+# Build output and JVM crash logs
+build/
+app/build/
+hs_err_pid*.log
+replay_pid*.log
