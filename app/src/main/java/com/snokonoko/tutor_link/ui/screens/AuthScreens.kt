@@ -223,7 +223,7 @@ fun SignInScreen(
                 if (register) "Campus email" else "Email or username",
                 email,
                 { email = it; errors = errors.copy(email = null) },
-                placeholder = if (register) "name@rosebank.ac.za" else "name@rosebank.ac.za or ${TEST_LOGIN[role]}",
+                placeholder = if (register) "name@rosebank.ac.za" else "you@gmail.com or ${TEST_LOGIN[role]}",
                 error = errors.email,
                 keyboard = KeyboardType.Email,
             )

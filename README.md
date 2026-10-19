@@ -41,20 +41,23 @@ GitHub Actions (`.github/workflows/android.yml`) runs the tests and builds the d
 
 ## Test logins
 
-All test accounts use the password **`123456`**. Type the short name (the app adds `@tutorlink.demo`) or the full email.
+Every demo account is a Gmail address: a "+" alias of one real inbox (`dylangorrah3+<username>@gmail.com`). The password for all of them is **`123456`**. In the app you can type just the username (e.g. `student1`) and it fills in the Gmail address.
 
-| Role | Login | Who |
-|---|---|---|
-| Tutor | `student1` | Refiloe Matsau (PROG1111, NETW1111) |
-| Tutor | `student2` | Sipho Ndlovu (NETW1111, PROG1111) |
-| Tutor | `student3` – `student10` | Lindiwe, Kagiso, Ayesha, Tumelo, Nadia, Lwazi, Chloe, Bongani |
-| Tutor (Google SSO) | `dylangorrah3@gmail.com` | Dylan Gorrah (ISEC6321, PROG6221, HCIN6222) |
-| Lecturer | `lecturer1` | Dr M. Pretorius (PROG1111, NETW1111) |
-| Lecturer | `lecturer2` | Ms T. Naidoo (DATA6211, DATA6222, SAND6221) |
-| Lecturer | `lecturer3` | Mr J. Botha (PROG6221, PROG6212, ISEC6321, HCIN6222) |
-| Admin | `admin1` | Programme Admin |
+| Role | Username | Email | Who |
+|---|---|---|---|
+| Tutor | `student1` | dylangorrah3+student1@gmail.com | Refiloe Matsau (PROG1111, NETW1111) |
+| Tutor | `student2` | dylangorrah3+student2@gmail.com | Sipho Ndlovu (NETW1111, PROG1111) |
+| Tutor | `student3` – `student10` | dylangorrah3+student3@gmail.com … | Lindiwe, Kagiso, Ayesha, Tumelo, Nadia, Lwazi, Chloe, Bongani |
+| Tutor (Google SSO) | — | dylangorrah3@gmail.com | Dylan Gorrah (ISEC6321, PROG6221, HCIN6222) |
+| Lecturer | `lecturer1` | dylangorrah3+lecturer1@gmail.com | Dr M. Pretorius (PROG1111, NETW1111) |
+| Lecturer | `lecturer2` | dylangorrah3+lecturer2@gmail.com | Ms T. Naidoo (DATA6211, DATA6222, SAND6221) |
+| Lecturer | `lecturer3` | dylangorrah3+lecturer3@gmail.com | Mr J. Botha (PROG6221, PROG6212, ISEC6321, HCIN6222) |
+| Admin | `admin1` | dylangorrah3+admin1@gmail.com | Programme Admin |
 
-Lecturers can also register themselves in the app with a `@rosebank.ac.za` address. When admin approves an application, the new tutor signs in with their `@tutor.rosebank.ac.za` email and the same test password.
+**How new accounts appear**
+- **Students** tap *Student* and sign up with Google or email + password, then send their marks. When admin approves, that same login opens the tutor app with a welcome message.
+- **Lecturers** are added by admin (Settings → Add a lecturer). The first time, they sign in with Google and choose a password.
+- The seeded applicants (Naledi, Ruan, Zanele, …) applied on the website. Approving one gives them the login `dylangorrah3+<firstname>@gmail.com` with password `123456`.
 
 ## API
 
@@ -70,6 +73,10 @@ Every call sends the signed-in user's access token. The function looks up the ca
 | All | `GET` / `PUT /settings` | Personal settings (haptics, reduce motion, message previews) |
 | Tutor | `PATCH /messages/{id}/read` | Mark a notice read |
 | Public | `POST /lecturer/register` | Create a lecturer login + account + modules |
+| Public | `POST /applicant/register` | A student creates their login (email + password) |
+| Student | `GET /applicant/status` | Their application and its status |
+| Student | `POST /applicant/apply` | Send qualifications: name, student number, programme, modules + marks |
+| Admin | `POST /admin/lecturers` | Add a lecturer (name, email, modules) |
 | Lecturer | `PUT /lecturer/modules` | Change the modules they teach |
 | Lecturer | `GET /lecturer/tutors` | Counts and tutors on their modules, with last message and unread dot |
 | Lecturer | `GET /lecturer/threads` | Notices they sent, newest first |
