@@ -1,47 +1,48 @@
 package com.snokonoko.tutor_link
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.activity.viewModels
+import androidx.compose.ui.graphics.toArgb
+import com.snokonoko.tutor_link.ui.AppRoot
+import com.snokonoko.tutor_link.ui.SessionViewModel
+import com.snokonoko.tutor_link.ui.theme.TL
 import com.snokonoko.tutor_link.ui.theme.TutorLinkTheme
+import io.github.jan.supabase.auth.handleDeeplinks
 
 class MainActivity : ComponentActivity() {
+    private val vm: SessionViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(TL.Bg.toArgb(), TL.Bg.toArgb()),
+            navigationBarStyle = SystemBarStyle.light(TL.Bg.toArgb(), TL.Bg.toArgb()),
+        )
+        handleAuthLink(intent)
         setContent {
             TutorLinkTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                AppRoot(vm)
             }
         }
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleAuthLink(intent)
+    }
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    TutorLinkTheme {
-        Greeting("Android")
+    // Google SSO returns to tutorlink://auth-callback
+    private fun handleAuthLink(intent: Intent?) {
+        if (intent?.data?.scheme != "tutorlink") return
+        try {
+            graph.supabase.handleDeeplinks(intent)
+        } catch (_: Exception) {
+            vm.toast("Google sign-in didn't complete. Try again.", error = true)
+        }
     }
 }

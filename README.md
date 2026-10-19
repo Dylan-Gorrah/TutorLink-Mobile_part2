@@ -1,8 +1,41 @@
 # TutorLink Mobile
 
+[![Android CI](https://github.com/Dylan-Gorrah/TutorLink-Mobile_part2/actions/workflows/android.yml/badge.svg)](https://github.com/Dylan-Gorrah/TutorLink-Mobile_part2/actions/workflows/android.yml)
+
 A native Android app (Kotlin + Jetpack Compose) for the Rosebank College tutoring programme. Tutors, lecturers and programme admins each get their own app, running on real data in Supabase through our own REST API.
 
 XISD6329 Task 2.
+
+## Tech stack
+
+- Kotlin, Jetpack Compose + Material 3, Navigation Compose (slide transitions), ViewModel + coroutines + StateFlow
+- kotlinx.serialization, DataStore (a local copy of personal settings)
+- supabase-kt (Auth, Storage) on Ktor (OkHttp engine); Google SSO through the deep link `tutorlink://auth-callback`
+- Our API: one Supabase Edge Function in TypeScript (`supabase/functions/api`)
+- Tests: JUnit 4, Ktor `MockEngine`, kotlinx-coroutines-test, run by GitHub Actions on every push
+
+## Running it
+
+1. Open the project in Android Studio (JDK 17, Android SDK 37 installed).
+2. Add these two lines to `local.properties` (it is git-ignored). Use the project URL and the **anon** key from Supabase → Project Settings → API:
+   ```
+   SUPABASE_URL=https://tvjhdelprudquvtjnbns.supabase.co
+   SUPABASE_ANON_KEY=<anon key>
+   ```
+3. Run the `app` configuration on a phone or emulator (Android 8.0+, portrait).
+
+Without `local.properties` the app still builds (placeholder values), which is what CI does, but it can't sign in.
+
+## Tests
+
+```
+./gradlew testDebugUnitTest
+```
+
+- `ValidatorsTest`: sign-in, lecturer registration and password rules, the wrong-role check, student count, rate, minimum mark and message rules
+- `ApiClientTest`: the API client against a Ktor `MockEngine`. It checks that JSON is read properly, that the right token goes with each call, and that 400 / 401 / 403 / 500 errors, broken JSON and no internet all become messages instead of crashes.
+
+GitHub Actions (`.github/workflows/android.yml`) runs the tests and builds the debug APK on every push and pull request, then uploads the test report and the APK.
 
 ## Test logins
 

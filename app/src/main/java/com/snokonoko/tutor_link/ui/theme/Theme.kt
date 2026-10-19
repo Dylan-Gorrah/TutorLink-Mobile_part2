@@ -1,58 +1,37 @@
 package com.snokonoko.tutor_link.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+// The demo's near-square editorial corner (4dp) and the large-card corner (8dp).
+val R4 = RoundedCornerShape(4.dp)
+val R8 = RoundedCornerShape(8.dp)
+
+private val Colors = lightColorScheme(
+    primary = TL.Navy,
+    onPrimary = TL.Gold,
+    secondary = TL.Gold,
+    onSecondary = TL.Navy,
+    background = TL.Bg,
+    onBackground = TL.Text,
+    surface = TL.Card,
+    onSurface = TL.Text,
+    surfaceContainerLow = TL.Card,
+    outline = TL.Line,
+    error = TL.Red,
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
-)
-
+// Light theme only, same as the demo.
 @Composable
-fun TutorLinkTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
+fun TutorLinkTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = Colors,
         typography = Typography,
-        content = content
+        shapes = Shapes(small = R4, medium = R4, large = R8),
+        content = content,
     )
 }
