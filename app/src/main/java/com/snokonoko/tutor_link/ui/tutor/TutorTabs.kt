@@ -366,10 +366,11 @@ private suspend fun shareCsv(context: Context, name: String, csv: String): Boole
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun LogSessionSheet(
+internal fun LogSessionSheet(
     modules: List<ModuleDto>,
     busy: Boolean,
     onDismiss: () -> Unit,
+    admin: Boolean = false,
     onSave: (String, String, String, () -> Unit) -> Unit,
 ) {
     var date by remember { mutableStateOf(LocalDate.now().toString()) }
@@ -377,7 +378,12 @@ private fun LogSessionSheet(
     var students by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf(false) }
 
-    TLSheet("Tutor", "Log a session", "It stays pending until admin checks it against your signed register.", onDismiss) { close ->
+    TLSheet(
+        if (admin) "Admin" else "Tutor",
+        if (admin) "Add a session" else "Log a session",
+        if (admin) "Sessions added here are confirmed straight away." else "It stays pending until admin checks it against your signed register.",
+        onDismiss,
+    ) { close ->
         Column {
             Text("DATE", style = TLType.label, modifier = Modifier.padding(start = 1.dp, bottom = 6.dp))
             Row(
@@ -396,7 +402,7 @@ private fun LogSessionSheet(
             }
         }
         Field("Students attending", students, { students = it.filter(Char::isDigit).take(3) }, placeholder = "e.g. 8", keyboard = KeyboardType.Number)
-        TLButton("Log session", { onSave(date, module, students, close) }, loading = busy, buzz = Buzz.CONFIRM)
+        TLButton(if (admin) "Add session" else "Log session", { onSave(date, module, students, close) }, loading = busy, buzz = Buzz.CONFIRM)
     }
 
     if (picking) {

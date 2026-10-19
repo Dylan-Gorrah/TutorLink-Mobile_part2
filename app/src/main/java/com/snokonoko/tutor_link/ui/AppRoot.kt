@@ -48,6 +48,15 @@ import com.snokonoko.tutor_link.ui.screens.ScrollBody
 import com.snokonoko.tutor_link.ui.screens.SettingsScreen
 import com.snokonoko.tutor_link.ui.screens.SignInScreen
 import com.snokonoko.tutor_link.ui.theme.TL
+import com.snokonoko.tutor_link.ui.staff.AdminTab
+import com.snokonoko.tutor_link.ui.staff.ApplicationScreen
+import com.snokonoko.tutor_link.ui.staff.LecturerTab
+import com.snokonoko.tutor_link.ui.staff.StaffNav
+import com.snokonoko.tutor_link.ui.staff.StaffViewModel
+import com.snokonoko.tutor_link.ui.staff.ThreadScreen
+import com.snokonoko.tutor_link.ui.staff.TutorDetailScreen
+import com.snokonoko.tutor_link.ui.staff.tutorCounts
+import com.snokonoko.tutor_link.ui.tutor.Loadable
 import com.snokonoko.tutor_link.ui.tutor.TutorTab
 import com.snokonoko.tutor_link.ui.tutor.TutorViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -76,6 +85,18 @@ fun AppRoot(vm: SessionViewModel) {
     val haptics = remember { context.graph.haptics }
     haptics.enabled = state.settings.haptics
     val reduce = state.settings.reduceMotion || systemAnimationsOff(context)
+
+    // Lecturer and admin share one view model across their tabs and detail screens, keyed to the account.
+    val staffId = state.me?.takeIf { Role.of(it.account.role) != Role.Tutor }?.account?.id
+    val staffVm: StaffViewModel? = staffId?.let { viewModel(key = "staff-$it") }
+    LaunchedEffect(staffVm) {
+        val svm = staffVm ?: return@LaunchedEffect
+        if (Role.of(state.me?.account?.role) == Role.Lecturer) svm.loadLecturer() else svm.loadAdmin()
+        svm.toasts.collect {
+            toast.show(it.text)
+            haptics.buzz(if (it.error) Buzz.ERROR else Buzz.CONFIRM)
+        }
+    }
 
     LaunchedEffect(Unit) {
         vm.messages.collect {
@@ -176,6 +197,16 @@ fun AppRoot(vm: SessionViewModel) {
                     val editModules = { nav.navigate(Routes.modules(signup = false)) }
                     if (me != null && Role.of(me.account.role) == Role.Tutor) {
                         TutorApp(state, me.account.id, openSettings, editModules, vm::signOut)
+                    } else if (me != null && staffVm != null) {
+                        val nav2 = StaffNav(
+                            openThread = { nav.navigate("thread/$it") },
+                            openApp = { nav.navigate("application/$it") },
+                            openTutor = { nav.navigate("tutor/$it") },
+                            editModules = editModules,
+                            openSettings = openSettings,
+                            signOut = vm::signOut,
+                        )
+                        StaffApp(state, staffVm, nav2)
                     } else {
                         PortalScreen(
                             state = state,
@@ -185,6 +216,28 @@ fun AppRoot(vm: SessionViewModel) {
                         ) { _, tab, _, _ ->
                             ScrollBody { ComingSoon(tab.replaceFirstChar { it.uppercase() }) }
                         }
+                    }
+                }
+                composable("thread/{tid}") { entry ->
+                    val tid = entry.arguments?.getString("tid").orEmpty()
+                    val me = state.me
+                    if (staffVm != null && me != null) {
+                        val ss by staffVm.state.collectAsStateWithLifecycle()
+                        ThreadScreen(tid, me.account.id, Role.of(me.account.role) == Role.Lecturer, state.settings.messagePreviews, staffVm, ss) { nav.popBackStack() }
+                    }
+                }
+                composable("application/{id}") { entry ->
+                    val id = entry.arguments?.getString("id").orEmpty()
+                    if (staffVm != null) {
+                        val ss by staffVm.state.collectAsStateWithLifecycle()
+                        ApplicationScreen(id, staffVm, ss) { nav.popBackStack() }
+                    }
+                }
+                composable("tutor/{id}") { entry ->
+                    val id = entry.arguments?.getString("id").orEmpty()
+                    if (staffVm != null) {
+                        val ss by staffVm.state.collectAsStateWithLifecycle()
+                        TutorDetailScreen(id, staffVm, ss, onBack = { nav.popBackStack() }, onThread = { nav.navigate("thread/$it") })
                     }
                 }
                 composable(Routes.SETTINGS) {
@@ -226,6 +279,25 @@ private fun TutorApp(state: SessionState, accountId: String, onOpenSettings: () 
         unreadOverride = unread,
     ) { _, tab, me, goTab ->
         TutorTab(tab, me, tvm, ts, state.settings.messagePreviews, goTab)
+    }
+}
+
+/** The lecturer's three tabs or the admin's five. */
+@Composable
+private fun StaffApp(state: SessionState, svm: StaffViewModel, nav: StaffNav) {
+    val ss by svm.state.collectAsStateWithLifecycle()
+    val role = Role.of(state.me?.account?.role)
+    val pending = (ss.applications as? Loadable.Ready)?.data?.count { it.status == "pending" } ?: 0
+    PortalScreen(
+        state = state,
+        onOpenSettings = nav.openSettings,
+        onEditModules = nav.editModules,
+        onSignOut = nav.signOut,
+        tabCounts = if (role == Role.Admin) mapOf("apps" to pending) else emptyMap(),
+        moduleCounts = tutorCounts(ss),
+    ) { r, tab, me, goTab ->
+        if (r == Role.Lecturer) LecturerTab(tab, me, svm, ss, state.firstRun, nav, goTab)
+        else AdminTab(tab, me, svm, ss, nav, goTab)
     }
 }
 

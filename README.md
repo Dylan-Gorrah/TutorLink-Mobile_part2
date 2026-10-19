@@ -35,6 +35,7 @@ Without `local.properties` the app still builds (placeholder values), which is w
 - `ValidatorsTest`: sign-in, lecturer registration and password rules, the wrong-role check, student count, rate, minimum mark and message rules
 - `ApiClientTest`: the API client against a Ktor `MockEngine`. It checks that JSON is read properly, that the right token goes with each call, and that 400 / 401 / 403 / 500 errors, broken JSON and no internet all become messages instead of crashes.
 - `TutorLogicTest`: pay maths (confirmed × rate, pending, projected), rand formatting, the CSV statement, the timeline dot rules, the unread count, "delivered" receipts, the "42m / 5h / Yst" times, and the tutor repository against a mock server
+- `StaffRepositoryTest`: lecturer and admin endpoints: the 403 when a lecturer messages outside their modules, the approve body and the new tutor it returns, rate changes, application marks and the status filter
 
 GitHub Actions (`.github/workflows/android.yml`) runs the tests and builds the debug APK on every push and pull request, then uploads the test report and the APK.
 

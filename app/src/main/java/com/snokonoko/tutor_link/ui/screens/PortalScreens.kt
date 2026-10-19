@@ -108,6 +108,8 @@ fun PortalScreen(
     onEditModules: () -> Unit,
     onSignOut: () -> Unit,
     unreadOverride: Int? = null,
+    tabCounts: Map<String, Int> = emptyMap(),
+    moduleCounts: Map<String, Int> = emptyMap(),
     tabContent: @Composable (role: Role, tab: String, me: Me, goTab: (String) -> Unit) -> Unit,
 ) {
     val me = state.me ?: return
@@ -129,16 +131,16 @@ fun PortalScreen(
                 transitionSpec = { fadeIn(tween(if (reduce) 1 else 220)) togetherWith fadeOut(tween(if (reduce) 1 else 120)) },
                 label = "tab",
             ) { current ->
-                if (current == "profile") {
+                if (current == "profile" && role != Role.Admin) {
                     ScrollBody {
-                        ProfileTab(role, me, onOpenSettings, onEditModules, onSignOut)
+                        ProfileTab(role, me, moduleCounts, onOpenSettings, onEditModules, onSignOut)
                     }
                 } else {
                     tabContent(role, current, me) { tab = it }
                 }
             }
         }
-        TabBar(tabs, tab, counts = mapOf("inbox" to unread)) { tab = it }
+        TabBar(tabs, tab, counts = tabCounts + ("inbox" to unread)) { tab = it }
     }
 }
 
@@ -199,7 +201,7 @@ fun ComingSoon(title: String) {
 /* ---------- profile tabs ---------- */
 
 @Composable
-private fun ColumnScope.ProfileTab(role: Role, me: Me, onOpenSettings: () -> Unit, onEditModules: () -> Unit, onSignOut: () -> Unit) {
+private fun ColumnScope.ProfileTab(role: Role, me: Me, moduleCounts: Map<String, Int>, onOpenSettings: () -> Unit, onEditModules: () -> Unit, onSignOut: () -> Unit) {
     val a = me.account
     when (role) {
         Role.Tutor -> {
@@ -232,7 +234,7 @@ private fun ColumnScope.ProfileTab(role: Role, me: Me, onOpenSettings: () -> Uni
                     }
                     me.modules.forEachIndexed { i, m ->
                         if (i > 0) RowDivider()
-                        ListRow(m.name, m.code, metaMono = true)
+                        ListRow(m.name, m.code, metaMono = true, trailing = moduleCounts[m.code]?.let { n -> { com.snokonoko.tutor_link.ui.components.Badge("$n tutors", com.snokonoko.tutor_link.ui.components.BadgeKind.Plain) } })
                     }
                 }
             }

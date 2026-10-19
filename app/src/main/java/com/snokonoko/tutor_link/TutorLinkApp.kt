@@ -49,6 +49,7 @@ class Graph(context: Context) {
     val api = ApiClient(http, BuildConfig.SUPABASE_URL + "/functions/v1/api", BuildConfig.SUPABASE_ANON_KEY) { auth.token() }
     val account = AccountRepository(api)
     val tutor = TutorRepository(api)
+    val staff = com.snokonoko.tutor_link.data.StaffRepository(api)
     val uploader = RegisterUploader(supabase)
     val localSettings = LocalSettings(context)
     val haptics = Haptics(context)
