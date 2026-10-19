@@ -22,7 +22,7 @@ On the phone: download the file, allow installs from this source when Android as
 
 ## Demo video
 
-Video: *(link added at submission)*
+Video: *(https://youtu.be/rQ2wdnJXqoY?si=hLzBPtOc9uA1CR5w)*
 
 ## Tech stack
 
